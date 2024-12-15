@@ -1,72 +1,94 @@
 <?php
-// sys_overseer_portal.php
-// 認証なし（試用版）
-// 修正済み:
-// - 全管理者一覧にPW, ストーリー数追加
-// - 詳細ボタン追加、管理者詳細画面で停止、削除、レベル編集、アカウント一覧、ストーリー一覧、アカウント削除、ストーリー削除
-// - 全ストーリー一覧のストーリーカードクリックで詳細画面表示（削除、閲覧、URL、テキスト、アクセス、リダイレクト表示）
-
 $accountJsonPath = 'account.json';
 $systemJsonPath = 'system.json';
 
-if (file_exists($accountJsonPath)) {
-    $usersData = json_decode(file_get_contents($accountJsonPath), true);
-    if ($usersData===null) {
+// account.json初期化
+if(!file_exists($accountJsonPath)){
+    $usersData=["accounts"=>[]];
+    file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
+} else {
+    $usersData=json_decode(file_get_contents($accountJsonPath),true);
+    if($usersData===null){
         $usersData=["accounts"=>[]];
         file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
     }
-} else {
-    $usersData=["accounts"=>[]];
-    file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
 }
 
-if (file_exists($systemJsonPath)) {
-    $systemData = json_decode(file_get_contents($systemJsonPath), true);
-    if ($systemData===null) {
+// system.json初期化
+if(!file_exists($systemJsonPath)){
+    $systemData=["admin_levels"=>[]];
+    file_put_contents($systemJsonPath,json_encode($systemData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
+}else{
+    $systemData=json_decode(file_get_contents($systemJsonPath),true);
+    if($systemData===null){
         $systemData=["admin_levels"=>[]];
         file_put_contents($systemJsonPath,json_encode($systemData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
     }
-} else {
-    $systemData=["admin_levels"=>[]];
-    file_put_contents($systemJsonPath,json_encode($systemData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
 }
 
 function esc($s){return htmlspecialchars($s,ENT_QUOTES,'UTF-8');}
 
 $message="";
 $error="";
-
 $action=isset($_POST['action'])?$_POST['action']:'';
 $viewAdmin=isset($_GET['admin'])?trim($_GET['admin']):'';
 $viewStory=isset($_GET['story_admin'])?trim($_GET['story_admin']):'';
 $viewStoryAcc=isset($_GET['story_acc'])?trim($_GET['story_acc']):'';
 $viewStoryIndex=isset($_GET['story_index'])?intval($_GET['story_index']):-1;
 
-// 管理者停止
-if($action==='disable_admin'){
-    $adminId=isset($_POST['admin_id'])?trim($_POST['admin_id']):'';
-    if($adminId===''){
-        $error="管理者IDが無効です。";
+function saveAccountData(&$usersData,$accountJsonPath){
+    if(!file_exists($accountJsonPath)){
+        $usersData=$usersData??["accounts"=>[]];
+        file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
     } else {
-        $found=false;
-        foreach($usersData['accounts'] as &$adm){
-            if($adm['id']===$adminId){
-                $adm['disabled']=true;
-                file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
-                $message="管理者(ID:$adminId)を停止しました。";
-                $found=true;
-                break;
-            }
-        }
-        if(!$found)$error="該当管理者が見つかりません。";
+        file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
     }
 }
 
-// 管理者削除
+function saveSystemData(&$systemData,$systemJsonPath){
+    if(!file_exists($systemJsonPath)){
+        $systemData=$systemData??["admin_levels"=>[]];
+        file_put_contents($systemJsonPath,json_encode($systemData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
+    } else {
+        file_put_contents($systemJsonPath,json_encode($systemData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
+    }
+}
+
+// create_admin
+if($action==='create_admin'){
+    $adminId=isset($_POST['admin_id'])?trim($_POST['admin_id']):'';
+    $adminPw=isset($_POST['admin_pw'])?trim($_POST['admin_pw']):'';
+    $adminLevel=isset($_POST['admin_level'])?intval($_POST['admin_level']):1;
+    if($adminId===''||$adminPw===''){
+        $error="管理者IDとパスワードを入力してください。";
+    } else {
+        $exists=false;
+        foreach($usersData['accounts'] as $adm){
+            if($adm['id']===$adminId){$exists=true;break;}
+        }
+        if($exists){
+            $error="既に存在する管理者IDです。";
+        } else {
+            $newAdmin=[
+                "uuid"=>uniqid(),
+                "id"=>$adminId,
+                "pw"=>$adminPw,
+                "pw_changed"=>false,
+                "level"=>$adminLevel,
+                "accounts"=>[]
+            ];
+            $usersData['accounts'][]=$newAdmin;
+            saveAccountData($usersData,$accountJsonPath);
+            $message="管理者が正常に作成されました。 (ID: ".esc($adminId).")";
+        }
+    }
+}
+
+// delete_admin
 if($action==='delete_admin'){
     $adminId=isset($_POST['admin_id'])?trim($_POST['admin_id']):'';
     if($adminId===''){
-        $error="管理者IDが無効です。";
+        $error="管理者IDを入力してください。";
     } else {
         $found=false;
         foreach($usersData['accounts'] as $i=>$adm){
@@ -105,38 +127,67 @@ if($action==='delete_admin'){
                 }
                 unset($usersData['accounts'][$i]);
                 $usersData['accounts']=array_values($usersData['accounts']);
-                file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
-                $message="管理者(ID:$adminId)が正常に削除されました。";
+                saveAccountData($usersData,$accountJsonPath);
+                $message="管理者(ID:".esc($adminId).")が正常に削除されました。";
                 $found=true;
                 break;
             }
         }
-        if(!$found)$error="指定の管理者が見つかりません。";
+        if(!$found)$error="指定された管理者IDが存在しません。";
     }
 }
 
-// 管理者レベル更新
-if($action==='update_admin_level'){
+// create_level
+if($action==='create_level'){
+    $level=isset($_POST['new_level'])?intval($_POST['new_level']):1;
+    $maxAccounts=isset($_POST['new_max_accounts'])?intval($_POST['new_max_accounts']):10;
+    $maxStories=isset($_POST['new_max_stories'])?intval($_POST['new_max_stories']):50;
+    if(isset($systemData['admin_levels'][$level])){
+        $error="そのレベルは既に存在します。";
+    } else {
+        $systemData['admin_levels'][$level]=[
+            "max_accounts"=>$maxAccounts,
+            "max_stories"=>$maxStories
+        ];
+        saveSystemData($systemData,$systemJsonPath);
+        $message="管理者レベル{$level}が作成されました。";
+    }
+}
+
+// update_level
+if($action==='update_level'){
+    $level=isset($_POST['level'])?intval($_POST['level']):1;
+    $maxAccounts=isset($_POST['max_accounts'])?intval($_POST['max_accounts']):10;
+    $maxStories=isset($_POST['max_stories'])?intval($_POST['max_stories']):50;
+    $systemData['admin_levels'][$level]=[
+        "max_accounts"=>$maxAccounts,
+        "max_stories"=>$maxStories
+    ];
+    saveSystemData($systemData,$systemJsonPath);
+    $message="管理者レベル{$level}の設定が更新されました。";
+}
+
+// disable_admin
+if($action==='disable_admin'){
     $adminId=isset($_POST['admin_id'])?trim($_POST['admin_id']):'';
-    $newLevel=isset($_POST['new_level'])?intval($_POST['new_level']):1;
     if($adminId===''){
         $error="管理者IDが無効です。";
     } else {
         $found=false;
         foreach($usersData['accounts'] as &$adm){
             if($adm['id']===$adminId){
-                $adm['level']=$newLevel;
-                file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
-                $message="管理者(ID:$adminId)のレベルを$newLevelに変更しました。";
+                $adm['disabled']=true;
+                saveAccountData($usersData,$accountJsonPath);
+                $message="管理者(ID:$adminId)を停止しました。";
                 $found=true;
                 break;
             }
         }
-        if(!$found)$error="指定の管理者が見つかりません。";
+        if(!$found)$error="該当管理者が見つかりません。";
     }
 }
 
-// アカウント削除(管理者詳細から)
+// delete_account_from_admin_detail
 if($action==='delete_account_from_admin_detail'){
     $adminId=isset($_POST['admin_id'])?trim($_POST['admin_id']):'';
     $accLink=isset($_POST['account_link'])?trim($_POST['account_link']):'';
@@ -179,7 +230,7 @@ if($action==='delete_account_from_admin_detail'){
                     }
 
                     unset($adm['accounts'][$accLink]);
-                    file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
+                    saveAccountData($usersData,$accountJsonPath);
                     $message="アカウント($accLink)を削除しました。";
                     $found=true;
                     break;
@@ -190,7 +241,7 @@ if($action==='delete_account_from_admin_detail'){
     }
 }
 
-// ストーリー削除(管理者詳細から)
+// delete_story_from_admin_detail
 if($action==='delete_story_from_admin_detail'){
     $adminId=isset($_POST['admin_id'])?trim($_POST['admin_id']):'';
     $accLink=isset($_POST['account_link'])?trim($_POST['account_link']):'';
@@ -205,7 +256,7 @@ if($action==='delete_story_from_admin_detail'){
                     $story=$adm['accounts'][$accLink]['stories'][$stIndex];
                     if(file_exists($story['image']))unlink($story['image']);
                     array_splice($adm['accounts'][$accLink]['stories'],$stIndex,1);
-                    file_put_contents($accountJsonPath,json_encode($usersData,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
+                    saveAccountData($usersData,$accountJsonPath);
                     $message="ストーリーを削除しました。";
                     $found=true;
                     break;
@@ -216,15 +267,14 @@ if($action==='delete_story_from_admin_detail'){
     }
 }
 
-// ストーリー数計算
-function countAdminStories($adm){
-    $count=0;
-    if(isset($adm['accounts'])){
-        foreach($adm['accounts'] as $acc){
-            $count+=count($acc['stories']);
+// 管理者詳細表示
+$viewAdminDetail=null;
+if($viewAdmin!==''){
+    foreach($usersData['accounts'] as $adm){
+        if($adm['id']===$viewAdmin){
+            $viewAdminDetail=$adm;break;
         }
     }
-    return $count;
 }
 
 // 全ストーリー一覧
@@ -248,17 +298,6 @@ foreach($usersData['accounts'] as $adm){
     }
 }
 
-// 管理者詳細画面
-$viewAdminDetail=null;
-if($viewAdmin!==''){
-    foreach($usersData['accounts'] as $adm){
-        if($adm['id']===$viewAdmin){
-            $viewAdminDetail=$adm;
-            break;
-        }
-    }
-}
-
 // ストーリー詳細
 $viewStoryDetail=null;
 if($viewStory!=='' && $viewStoryAcc!=='' && $viewStoryIndex>=0){
@@ -276,7 +315,154 @@ if($viewStory!=='' && $viewStoryAcc!=='' && $viewStoryIndex>=0){
         }
     }
 }
-?>
+
+// ストーリー詳細表示
+if($viewStoryDetail!==null){
+    $st=$viewStoryDetail['story'];
+    ?>
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+    <meta charset="UTF-8">
+    <title>ストーリー詳細</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <style>
+    body{
+        font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+        background:#f9f9f9;
+        margin:0;padding:20px;
+    }
+    h2{text-align:center;color:#333;}
+    .story-detail-section {
+        margin-top:20px;background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);
+    }
+    .story-detail-section img{
+        max-width:100%;height:auto;display:block;margin-bottom:10px;
+    }
+    </style>
+    </head>
+    <body>
+    <h2>ストーリー詳細</h2>
+    <div class="story-detail-section">
+        <img src="<?php echo esc($st['image']);?>" alt="ストーリー画像">
+        <p>アカウント名: <?php echo esc($viewStoryDetail['account_name']);?></p>
+        <p>テキスト: <?php echo esc($st['text']);?></p>
+        <p>URL: <a href="<?php echo esc($st['url']);?>" target="_blank"><?php echo esc($st['url']);?></a></p>
+        <p>閲覧数: <?php echo esc($st['access_count']??0);?></p>
+        <p>遷移数: <?php echo esc($st['redirect_count']??0);?></p>
+        <form method="post">
+            <input type="hidden" name="action" value="delete_story_from_admin_detail">
+            <input type="hidden" name="admin_id" value="<?php echo esc($viewStoryDetail['admin_id']);?>">
+            <input type="hidden" name="account_link" value="<?php echo esc($viewStoryDetail['account_link']);?>">
+            <input type="hidden" name="story_index" value="<?php echo esc($viewStoryDetail['story_index']);?>">
+            <button type="submit">ストーリー削除</button>
+        </form>
+    </div>
+    <p style="text-align:center;margin-top:20px;"><a href="sys_overseer_portal.php">戻る</a></p>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+// 管理者詳細表示
+if($viewAdminDetail!==null){
+    $adm=$viewAdminDetail;
+    ?>
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+    <meta charset="UTF-8">
+    <title>管理者詳細</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <style>
+    body{
+        font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+        background:#f9f9f9;
+        margin:0;padding:20px;
+    }
+    h2{text-align:center;color:#333;}
+    .section{
+        background:#fff;padding:20px;margin-bottom:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);
+    }
+    .account-list-admin-detail h3,.story-list-admin-detail h3{margin-top:0;color:#333;}
+    .account-item{background:#f9f9f9;padding:10px;margin-bottom:10px;border-radius:8px;}
+    .account-item h4{margin:0 0 10px 0;color:#333;}
+    .account-item button{margin-right:10px;}
+    </style>
+    </head>
+    <body>
+    <h2>管理者詳細(ID: <?php echo esc($adm['id']);?>)</h2>
+    <div class="section admin-detail-section">
+        <p>UUID: <?php echo esc($adm['uuid']);?></p>
+        <p>PW変更済: <?php echo $adm['pw_changed']?'はい':'いいえ';?></p>
+        <p>レベル: <?php echo esc($adm['level']);?></p>
+        <p>無効化: <?php echo isset($adm['disabled'])&&$adm['disabled']===true?'はい':'いいえ';?></p>
+
+        <h3>管理者操作</h3>
+        <form method="post">
+            <input type="hidden" name="action" value="disable_admin">
+            <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
+            <button type="submit">この管理者を停止</button>
+        </form>
+        <form method="post">
+            <input type="hidden" name="action" value="delete_admin">
+            <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
+            <button type="submit">この管理者を削除</button>
+        </form>
+        <form method="post">
+            <input type="hidden" name="action" value="update_admin_level">
+            <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
+            <label>レベル変更:
+                <input type="number" name="new_level" min="1" value="<?php echo esc($adm['level']);?>" required>
+            </label>
+            <button type="submit">レベル更新</button>
+        </form>
+
+        <?php if(isset($adm['accounts'])&&!empty($adm['accounts'])):?>
+        <div class="account-list-admin-detail">
+            <h3>アカウント一覧</h3>
+            <?php foreach($adm['accounts'] as $accLink=>$accData):?>
+            <div class="account-item">
+                <h4>アカウント: <?php echo esc($accData['name']);?> (<?php echo esc($accLink);?>)</h4>
+                <p>ストーリー数: <?php echo count($accData['stories']);?></p>
+                <form method="post" style="display:inline-block;">
+                    <input type="hidden" name="action" value="delete_account_from_admin_detail">
+                    <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
+                    <input type="hidden" name="account_link" value="<?php echo esc($accLink);?>">
+                    <button type="submit">アカウント削除</button>
+                </form>
+                <h4>ストーリー一覧</h4>
+                <?php if(!empty($accData['stories'])):?>
+                <?php foreach($accData['stories'] as $idx=>$st):?>
+                <div style="background:#eee;padding:5px;margin-bottom:5px;border-radius:4px;">
+                    <p>テキスト: <?php echo esc($st['text']);?></p>
+                    <p>URL: <a href="<?php echo esc($st['url']);?>" target="_blank"><?php echo esc($st['url']);?></a></p>
+                    <p>閲覧数: <?php echo esc($st['access_count']??0);?> / 遷移数: <?php echo esc($st['redirect_count']??0);?></p>
+                    <form method="post" style="display:inline-block;">
+                        <input type="hidden" name="action" value="delete_story_from_admin_detail">
+                        <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
+                        <input type="hidden" name="account_link" value="<?php echo esc($accLink);?>">
+                        <input type="hidden" name="story_index" value="<?php echo $idx;?>">
+                        <button type="submit">ストーリー削除</button>
+                    </form>
+                </div>
+                <?php endforeach; else:?>
+                <p>ストーリーがありません。</p>
+                <?php endif;?>
+            </div>
+            <?php endforeach;?>
+        </div>
+        <?php else:?>
+        <p>この管理者にはアカウントがありません。</p>
+        <?php endif;?>
+
+    </div>
+    <p style="text-align:center;margin-top:20px;"><a href="sys_overseer_portal.php">戻る</a></p>
+    </body>
+    </html>
+    <?php exit;endif;?>
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -339,129 +525,12 @@ tr:nth-child(even){
     margin-bottom:5px;font-size:14px;color:#333;word-break:break-all;
 }
 .story-url a{color:#0078D7;}
-
-.admin-detail-section {
-    margin-top:20px;
-}
-.account-list-admin-detail,.story-list-admin-detail{
-    margin-top:20px;
-    background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);
-}
-.account-list-admin-detail h3, .story-list-admin-detail h3{
-    margin-top:0;color:#333;
-}
-.account-item{
-    background:#f9f9f9;padding:10px;margin-bottom:10px;border-radius:8px;
-}
-.account-item h4{margin:0 0 10px 0;color:#333;}
-.account-item button{margin-right:10px;}
-
-.story-detail-section {
-    margin-top:20px;background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);
-}
-.story-detail-section img{
-    max-width:100%;height:auto;display:block;margin-bottom:10px;
-}
 </style>
 </head>
 <body>
 <h1>System Overseer Portal</h1>
 <?php if(!empty($message)):?><p class="message"><?php echo esc($message);?></p><?php endif;?>
 <?php if(!empty($error)):?><p class="error"><?php echo esc($error);?></p><?php endif;?>
-
-<?php if($viewStoryDetail!==null):
-    $st=$viewStoryDetail['story'];
-?>
-<h2>ストーリー詳細</h2>
-<div class="story-detail-section">
-    <img src="<?php echo esc($st['image']);?>" alt="ストーリー画像">
-    <p>アカウント名: <?php echo esc($viewStoryDetail['account_name']);?></p>
-    <p>テキスト: <?php echo esc($st['text']);?></p>
-    <p>URL: <a href="<?php echo esc($st['url']);?>" target="_blank"><?php echo esc($st['url']);?></a></p>
-    <p>閲覧数: <?php echo esc($st['access_count']);?></p>
-    <p>遷移数: <?php echo esc($st['redirect_count']);?></p>
-    <form method="post">
-        <input type="hidden" name="action" value="delete_story_from_admin_detail">
-        <input type="hidden" name="admin_id" value="<?php echo esc($viewStoryDetail['admin_id']);?>">
-        <input type="hidden" name="account_link" value="<?php echo esc($viewStoryDetail['account_link']);?>">
-        <input type="hidden" name="story_index" value="<?php echo esc($viewStoryDetail['story_index']);?>">
-        <button type="submit">ストーリー削除</button>
-    </form>
-</div>
-<p style="text-align:center;margin-top:20px;"><a href="sys_overseer_portal.php">戻る</a></p>
-<?php exit;endif;?>
-
-<?php if($viewAdminDetail!==null):
-    $adm=$viewAdminDetail;
-?>
-<h2>管理者詳細(ID: <?php echo esc($adm['id']);?>)</h2>
-<div class="section admin-detail-section">
-    <p>UUID: <?php echo esc($adm['uuid']);?></p>
-    <p>PW変更済: <?php echo $adm['pw_changed']?'はい':'いいえ';?></p>
-    <p>レベル: <?php echo esc($adm['level']);?></p>
-    <p>無効化: <?php echo isset($adm['disabled'])&&$adm['disabled']===true?'はい':'いいえ';?></p>
-
-    <h3>管理者操作</h3>
-    <form method="post">
-        <input type="hidden" name="action" value="disable_admin">
-        <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
-        <button type="submit">この管理者を停止</button>
-    </form>
-    <form method="post">
-        <input type="hidden" name="action" value="delete_admin">
-        <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
-        <button type="submit">この管理者を削除</button>
-    </form>
-    <form method="post">
-        <input type="hidden" name="action" value="update_admin_level">
-        <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
-        <label>レベル変更:
-            <input type="number" name="new_level" min="1" value="<?php echo esc($adm['level']);?>" required>
-        </label>
-        <button type="submit">レベル更新</button>
-    </form>
-
-    <?php if(isset($adm['accounts'])&&!empty($adm['accounts'])):?>
-    <div class="account-list-admin-detail">
-        <h3>アカウント一覧</h3>
-        <?php foreach($adm['accounts'] as $accLink=>$accData):?>
-        <div class="account-item">
-            <h4>アカウント: <?php echo esc($accData['name']);?> (<?php echo esc($accLink);?>)</h4>
-            <p>ストーリー数: <?php echo count($accData['stories']);?></p>
-            <form method="post" style="display:inline-block;">
-                <input type="hidden" name="action" value="delete_account_from_admin_detail">
-                <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
-                <input type="hidden" name="account_link" value="<?php echo esc($accLink);?>">
-                <button type="submit">アカウント削除</button>
-            </form>
-            <h4>ストーリー一覧</h4>
-            <?php if(!empty($accData['stories'])):?>
-            <?php foreach($accData['stories'] as $idx=>$st):?>
-            <div style="background:#eee;padding:5px;margin-bottom:5px;border-radius:4px;">
-                <p>テキスト: <?php echo esc($st['text']);?></p>
-                <p>URL: <a href="<?php echo esc($st['url']);?>" target="_blank"><?php echo esc($st['url']);?></a></p>
-                <p>閲覧数: <?php echo esc($st['access_count']);?> / 遷移数: <?php echo esc($st['redirect_count']);?></p>
-                <form method="post" style="display:inline-block;">
-                    <input type="hidden" name="action" value="delete_story_from_admin_detail">
-                    <input type="hidden" name="admin_id" value="<?php echo esc($adm['id']);?>">
-                    <input type="hidden" name="account_link" value="<?php echo esc($accLink);?>">
-                    <input type="hidden" name="story_index" value="<?php echo $idx;?>">
-                    <button type="submit">ストーリー削除</button>
-                </form>
-            </div>
-            <?php endforeach; else:?>
-            <p>ストーリーがありません。</p>
-            <?php endif;?>
-        </div>
-        <?php endforeach;?>
-    </div>
-    <?php else:?>
-    <p>この管理者にはアカウントがありません。</p>
-    <?php endif;?>
-
-</div>
-<p style="text-align:center;margin-top:20px;"><a href="sys_overseer_portal.php">戻る</a></p>
-<?php exit;endif;?>
 
 <div class="section">
     <h2>管理者の作成</h2>
@@ -593,6 +662,5 @@ tr:nth-child(even){
     <p style="text-align:center;color:#555;">ストーリーがありません。</p>
     <?php endif;?>
 </div>
-
 </body>
 </html>
