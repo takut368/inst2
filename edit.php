@@ -13,6 +13,20 @@ if (strpos($current_dir, $base_path) !== 0) {
     $current_dir = $base_path;
 }
 
+// ファイル内容取得用 (他の出力が行われる前に処理して即終了)
+if (isset($_GET['getfile'])) {
+    $gf = $_GET['getfile'];
+    $gf_full = realpath($current_dir . DIRECTORY_SEPARATOR . $gf);
+    if ($gf_full && strpos($gf_full, $current_dir) === 0 && is_file($gf_full)) {
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo file_get_contents($gf_full);
+        exit;
+    } else {
+        header('HTTP/1.1 404 Not Found');
+        exit;
+    }
+}
+
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'name';
 
@@ -322,7 +336,7 @@ $video_ext = ['mp4','webm','ogg'];
     }
     #editModal .line-count {
         position: absolute;
-        right: 80px; /* ボタンと被らないよう少し右に */
+        right: 80px; /* ボタンと被らないよう */
         top: 20px;
         font-size: 0.9rem;
         color: #666;
@@ -584,7 +598,7 @@ $video_ext = ['mp4','webm','ogg'];
     <form id="editForm" style="height:100%;">
         <div class="modal-content" style="height:100%;">
           <div class="modal-header" style="position:relative;">
-            <h5 class="modal-title">ファイル編集</h5>
+            <h5 class="modal-title">ファイル編集: <span id="editing-filename"></span></h5>
             <span class="line-count"></span>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
           </div>
@@ -826,6 +840,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var editTextarea = editForm.querySelector('textarea[name="filecontent"]');
     var editSaveButton = editForm.querySelector('button[type="submit"]');
     var lineCountDisplay = editModal.querySelector('.line-count');
+    var editingFilenameSpan = document.getElementById('editing-filename');
     var originalContent = '';
 
     function updateLineCount() {
@@ -844,6 +859,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.edit-btn').forEach(function(btn) {
         btn.addEventListener('click', function(){
             var file = btn.getAttribute('data-file');
+            editingFilenameSpan.textContent = file;
             var xhr = new XMLHttpRequest();
             xhr.open('GET', '?dir='+encodeURIComponent(currentDir)+'&getfile=' + encodeURIComponent(file));
             xhr.onload = function() {
@@ -901,21 +917,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 </script>
-
-<?php
-// ファイル内容取得用
-if (isset($_GET['getfile'])) {
-    $gf = $_GET['getfile'];
-    $gf_full = realpath($current_dir . DIRECTORY_SEPARATOR . $gf);
-    if ($gf_full && strpos($gf_full, $current_dir) === 0 && is_file($gf_full)) {
-        header('Content-Type: text/plain; charset=UTF-8');
-        echo file_get_contents($gf_full);
-        exit;
-    } else {
-        header('HTTP/1.1 404 Not Found');
-        exit;
-    }
-}
-?>
 </body>
 </html>
