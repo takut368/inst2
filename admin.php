@@ -1,10 +1,6 @@
 <?php
 session_start();
 
-// このファイルは、admin.phpにstatsとredirectの機能を統合し、
-// account.jsonがない場合は作成し、書き込みを行うように修正した完全版です。
-// 全てのコードを省略せずに、コピーペーストしてそのまま使用できるソースコードを提示します。
-
 $accountJsonPath = 'account.json';
 
 // account.jsonがない場合は作成して初期化
@@ -64,7 +60,7 @@ if(isset($_POST['username']) && isset($_POST['password'])){
         $_SESSION['loggedin']=true;
         $_SESSION['username']=$username;
     } else {
-        $error="ユーザー名またはパスワードが違うか、管理者が無効化されています。";
+        $error="ユーザー名またはパスワードが違います。";
     }
 }
 
@@ -783,7 +779,6 @@ button:hover {
 <div class="menu" id="menu">
     <a href="admin.php" class="menu-item <?php echo basename($_SERVER['PHP_SELF'])=='admin.php'?'active':'';?>">管理画面</a>
     <a href="admin.php?stats=1" class="menu-item">アクセス解析</a>
-    <a href="edit.php" class="menu-item">ソースコード管理</a>
     <a href="admin.php?logout=true" class="menu-item logout">ログアウト</a>
 </div>
 
@@ -832,7 +827,6 @@ button:hover {
     </div>
 </div>
 
-<!-- 以下、モーダル等のHTML、JSは前回答と同一で省略せず記載 -->
 <div id="accountModal" class="modal">
     <div class="modal-content">
         <span class="close" onclick="closeAccountModal()">&times;</span>
