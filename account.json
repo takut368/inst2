@@ -1,1 +1,37 @@
-
+{
+    "accounts": [
+        {
+            "uuid": "676147f7e3a37",
+            "id": "admin",
+            "pw": "admin",
+            "pw_changed": true,
+            "level": 1,
+            "accounts": {
+                "ABC123": {
+                    "name": "SampleAccount",
+                    "icon": "uploads\/icons\/sample_icon.png",
+                    "stories": [
+                        {
+                            "image": "uploads\/stories\/ABC123\/story_1.png",
+                            "url": "https:\/\/example.com",
+                            "text": "サンプルテキスト",
+                            "link_position": {
+                                "x_ratio": 0.5,
+                                "y_ratio": 0.5
+                            },
+                            "redirect_count": 0
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "uuid": "676e81b476de2",
+            "id": "aaaa",
+            "pw": "aaaa",
+            "pw_changed": true,
+            "level": 2,
+            "accounts": []
+        }
+    ]
+}
